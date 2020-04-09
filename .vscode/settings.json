@@ -1,0 +1,6 @@
+{
+    "terraform.templateDirectory": "",
+    "python.linting.pylintEnabled": true,
+    "python.linting.enabled": true,
+    "python.linting.pycodestyleEnabled": false
+}

@@ -1,0 +1,219 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "Account Builder Template.",
+    "Metadata": {
+        "AWS::CloudFormation::Interface": {
+            "ParameterGroups": [
+                {
+                    "Label": {
+                        "default": "Account Creation Parameters"
+                    },
+                    "Parameters": [
+                        "accountname",
+                        "accountemail",
+                        "parenthub",
+                        "ishub",
+                        "stackregion",
+                        "removedefaultvpc"
+                    ]
+                }
+            ],
+			"ParameterLabels" : {	
+				"accountname" : { "default" : "Account Name" },
+                "accountemail" : { "default" : "Registration Email" },
+                "parenthub" : { "default" : "Associated Parent Hub Account" },
+                "ishub" : {"default" : "Hub Account"},
+				"removedefaultvpc" : { "default" : "Remove Default VPC" }
+			}
+        }
+    },
+    "Parameters": {
+        "accountemail": {
+            "Description": "Account Email address",
+            "Type": "String",
+            "AllowedPattern": ".+\\@contoso\\.com",
+            "ConstraintDescription": "You must provide a valid corporate email address for registering the account!"
+        },
+        "accountname": {
+            "Description": "Name of the new AWS Account Name",
+            "Type": "String",
+            "AllowedPattern": ".+",
+            "ConstraintDescription": "Provide the account name"
+        },
+        "stackregion": {
+            "Description": "Region for deploying the baseline template in the created account",
+            "Default": "us-west-2",
+            "Type": "String",
+            "AllowedPattern": ".+",
+            "AllowedValues": [
+                "us-east-1",
+                "us-east-2",
+                "us-west-1",
+                "us-west-2",
+                "ap-northeast-1",
+                "ap-northeast-2",
+                "ap-northeast-3",
+                "ap-south-1",
+                "ap-southeast-1",
+                "ap-southeast-2",
+                "ca-central-1",
+                "cn-north-1",
+                "cn-northwest-1",
+                "eu-central-1",
+                "eu-west-1",
+                "eu-west-2",
+                "eu-west-3",
+                "sa-east-1"
+            ],
+            "ConstraintDescription": "Must be a valid AWS region"
+        },
+        "parenthub" : { 
+            "Description" : "Provide the exact account/environment name for the associated Transit Hub account.  If this account is a hub, this parameter is ignored and can be left blank",
+            "Type": "String"
+        },
+        "ishub": {
+            "Description" : "Specify whether this account will be a new Transit Hub",
+            "Default" : "false",
+            "Type" : "String",
+            "AllowedValues": [
+                "true",
+                "false"
+            ]
+        },
+        "removedefaultvpc": {
+            "Description": "Whether to remove the default VPC from new account, if in doubt leave true.",
+            "Default": "true",
+            "Type": "String",
+            "AllowedValues": [
+                "true",
+                "false"
+            ]
+        }
+    },
+    "Resources": {
+        "AccountBuilderLambda": {
+            "Type": "AWS::Lambda::Function",
+            "Properties": {
+                "Handler": "AccountCreationLambda.main",
+                "Runtime": "python3.6",
+                "Role": {
+                    "Fn::GetAtt": [
+                        "LambdaExecuteRole",
+                        "Arn"
+                    ]
+                },
+                "Timeout": 900,
+                "TracingConfig": {
+                    "Mode": "Active"
+                },
+                "Code": {
+                    "S3Bucket": "yourcompanynameORcustomprefix-iac-appcatalog",
+                    "S3Key": "AccountCreationLambda.zip"
+                },
+                "Environment": {
+                    "Variables": {
+                        "accountemail": {
+                            "Ref": "accountemail"
+                        },
+                        "accountname": {
+                            "Ref": "accountname"
+                        },
+                        "parenthub": {
+                            "Ref": "parenthub"
+                        },
+                        "iac_account_id": "yourspecialIACAWSaccount#",
+                        "ishub": {
+                            "Ref": "ishub"
+                        },
+                        "stackname": { "Fn::Join" : [ "", [ "yourcompanynameORcustomprefix-accountbootstrapper-", {"Ref": "accountname"} ] ] },
+                        "stackregion": {
+                            "Ref": "stackregion"
+                        },
+                        "sourcebucket": "yourcompanynameORcustomprefix-iac-master",
+                        "removedefaultvpc": {
+                            "Ref": "removedefaultvpc"
+                        }
+                    }
+                }
+            }
+        },
+        "LambdaExecuteRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": {
+                        "Effect": "Allow",
+                        "Principal": {
+                            "Service": [
+                                "lambda.amazonaws.com"
+                            ]
+                        },
+                        "Action": [
+                            "sts:AssumeRole"
+                        ]
+                    }
+                },
+                "Path": "/",
+                "Policies": [
+                    {
+                        "PolicyName": "LambdaAccessRole",
+                        "PolicyDocument": {
+                            "Version": "2012-10-17",
+                            "Statement": {
+                                "Effect": "Allow",
+                                "Action": "*",
+                                "Resource": "*"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        "TriggerLambda": {
+            "Type": "Custom::TriggerLambda",
+            "DeletionPolicy": "Retain",
+            "DependsOn": [
+                "AccountBuilderLambda",
+                "LambdaExecuteRole"
+            ],
+            "Properties": {
+                "ServiceToken": {
+                    "Fn::GetAtt": [
+                        "AccountBuilderLambda",
+                        "Arn"
+                    ]
+                }
+            }
+        }
+    },
+    "Outputs": {
+        "Message": {
+            "Description": "Execution Status",
+            "Value": {
+                "Fn::GetAtt": [
+                    "TriggerLambda",
+                    "Message"
+                ]
+            }
+        },
+        "AccountID": {
+            "Description": "ID of the new account",
+            "Value": {
+                "Fn::GetAtt": [
+                    "TriggerLambda",
+                    "AccountID"
+                ]
+            }
+        },
+        "LoginURL": {
+            "Description": "Login url",
+            "Value": {
+                "Fn::GetAtt": [
+                    "TriggerLambda",
+                    "LoginURL"
+                ]
+            }
+        }
+    }
+}

@@ -1,0 +1,18 @@
+# /*
+#  * Cloudformation Script to handle any additional ONE-OFF build needs in a new account
+#  *
+#  * This capability has been provided to handle any new future use case, but should not be used.
+#  * Where possible, Terraform should always create and manage infrastructure tasks!
+#  * This capability may have been disabled elsewhere, but exists primarily for future proofing only.
+#  */
+
+AWSTemplateFormatVersion: 2010-09-09
+Description: Baseline IAM resources for new account
+Parameters:
+  NewRoleArn:
+    Type: String
+    Description: ARN of the NewRole
+Resources:
+  NullResource:
+    Type: 'Custom::NullResource'
+    Condition: HasNot
